@@ -1,0 +1,120 @@
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.Response;
+import org.json.JSONArray;
+import org.json.JSONObject;
+
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.util.ArrayList;
+import java.util.List;
+
+public class SpotifyToYouTube {
+    private static final String SPOTIFY_API_URL = "https://api.spotify.com/v1";
+    private static final String YOUTUBE_DL_URL = "https://www.youtube.com/watch?v=";
+    private static final String CONVERT_API_URL = "https://api.online-convert.com/convert"; // example API for converting YouTube videos to MP3
+
+    private static final String CLIENT_ID = "your-spotify-client-id";
+    private static final String CLIENT_SECRET = "your-spotify-client-secret";
+
+    public static void main(String[] args) throws IOException {
+        // Step 1: Authenticate with Spotify API
+        String accessToken = authenticateWithSpotify();
+
+        // Step 2: Get user's playlists
+        List<String> playlistIds = getPlaylistIds(accessToken);
+
+        // Step 3: Iterate through playlists and tracks
+        for (String playlistId : playlistIds) {
+            List<String> trackNames = getTrackNames(accessToken, playlistId);
+
+            for (String trackName : trackNames) {
+                // Step 4: Search for YouTube video
+                String youtubeVideoId = searchYouTube(trackName);
+
+                // Step 5: Download YouTube video using youtube-dl
+                String videoFile = downloadYouTubeVideo(youtubeVideoId);
+
+                // Step 6: Convert video to MP3 using online-convert API
+                String mp3File = convertVideoToMp3(videoFile);
+
+                System.out.println("Downloaded and converted " + trackName + " to MP3");
+            }
+        }
+    }
+
+    private static String authenticateWithSpotify() throws IOException {
+        // Authenticate with Spotify API using client ID and client secret
+        OkHttpClient client = new OkHttpClient();
+        Request request = new Request.Builder()
+                .url("https://accounts.spotify.com/api/token")
+                .post(RequestBody.create(MediaType.get("application/x-www-form-urlencoded"), "grant_type=client_credentials&client_id=" + CLIENT_ID + "&client_secret=" + CLIENT_SECRET))
+                .build();
+
+        Response response = client.newCall(request).execute();
+        JSONObject jsonObject = new JSONObject(response.body().string());
+        String accessToken = jsonObject.getString("access_token");
+
+        return accessToken;
+    }
+
+    private static List<String> getPlaylistIds(String accessToken) throws IOException {
+        // Get user's playlists using Spotify API
+        OkHttpClient client = new OkHttpClient();
+        Request request = new Request.Builder()
+                .url(SPOTIFY_API_URL + "/me/playlists")
+                .header("Authorization", "Bearer " + accessToken)
+                .build();
+
+        Response response = client.newCall(request).execute();
+        JSONObject jsonObject = new JSONObject(response.body().string());
+        JSONArray playlistsArray = jsonObject.getJSONArray("items");
+
+        List<String> playlistIds = new ArrayList<>();
+        for (int i = 0; i < playlistsArray.length(); i++) {
+            JSONObject playlistObject = playlistsArray.getJSONObject(i);
+            playlistIds.add(playlistObject.getString("id"));
+        }
+
+        return playlistIds;
+    }
+
+    private static List<String> getTrackNames(String accessToken, String playlistId) throws IOException {
+        // Get tracks for a playlist using Spotify API
+        OkHttpClient client = new OkHttpClient();
+        Request request = new Request.Builder()
+                .url(SPOTIFY_API_URL + "/playlists/" + playlistId + "/tracks")
+                .header("Authorization", "Bearer " + accessToken)
+                .build();
+
+        Response response = client.newCall(request).execute();
+        JSONObject jsonObject = new JSONObject(response.body().string());
+        JSONArray tracksArray = jsonObject.getJSONArray("items");
+
+        List<String> trackNames = new ArrayList<>();
+        for (int i = 0; i < tracksArray.length(); i++) {
+            JSONObject trackObject = tracksArray.getJSONObject(i);
+            trackNames.add(trackObject.getJSONObject("track").getString("name"));
+        }
+
+        return trackNames;
+    }
+
+    private static String searchYouTube(String trackName) throws IOException {
+        // Search for YouTube video using YouTube API
+        OkHttpClient client = new OkHttpClient();
+        Request request = new Request.Builder()
+                .url("https://www.googleapis.com/youtube/v3/search")
+                .header("Authorization", "Bearer YOUR_YOUTUBE_API_KEY")
+                .post(RequestBody.create(MediaType.get("application/x-www-form-urlencoded"), "part=id&q=" + trackName + "&key=YOUR_YOUTUBE_API_KEY"))
+                .build();
+
+        Response response = client.newCall(request).execute();
+        JSONObject jsonObject = new JSONObject(response.body().string());
+        JSONArray itemsArray = jsonObject.getJSONArray("items");
+
+        String youtubeVideoId = "";
+        for (int i = 0; i < itemsArray.length(); i++) {
+            JSONObject itemObject = itemsArray.getJSONObject(i
